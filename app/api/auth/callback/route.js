@@ -1,48 +1,46 @@
 
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { saveRefreshToken } from "../../../../lib/state.js";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
 
   const code = searchParams.get("code");
-  const state = searchParams.get("state");
-  const error = searchParams.get("error");
+  const returnedState = searchParams.get("state");
+  const expectedState = request.cookies.get("twitch_oauth_state")?.value;
 
-  const cookieStore = await cookies();
-  const savedState = cookieStore.get("twitch_oauth_state")?.value;
+  const response = (body, status = 200) => {
+    const result = NextResponse.json(body, { status });
 
-  if (error) {
-    return NextResponse.json(
-      { error: "Twitch authorization was denied." },
-      { status: 400 }
-    );
+    result.cookies.set("twitch_oauth_state", "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 0,
+      path: "/",
+    });
+
+    return result;
+  };
+
+  if (!code || !returnedState || !expectedState) {
+    return response({ error: "Missing OAuth parameters." }, 400);
   }
 
-  if (!state || !savedState || state !== savedState) {
-    return NextResponse.json(
-      { error: "Invalid OAuth state." },
-      { status: 403 }
-    );
+  if (returnedState !== expectedState) {
+    return response({ error: "Invalid OAuth state." }, 403);
   }
-
-  if (!code) {
-    return NextResponse.json(
-      { error: "Authorization code missing." },
-      { status: 400 }
-    );
-  }
-
-  const params = new URLSearchParams({
-    client_id: process.env.TWITCH_CLIENT_ID,
-    client_secret: process.env.TWITCH_CLIENT_SECRET,
-    code,
-    grant_type: "authorization_code",
-    redirect_uri: process.env.TWITCH_REDIRECT_URI,
-  });
 
   try {
-    const twitchResponse = await fetch(
+    const params = new URLSearchParams({
+      client_id: process.env.TWITCH_CLIENT_ID,
+      client_secret: process.env.TWITCH_CLIENT_SECRET,
+      code,
+      grant_type: "authorization_code",
+      redirect_uri: process.env.TWITCH_REDIRECT_URI,
+    });
+
+    const tokenResponse = await fetch(
       "https://id.twitch.tv/oauth2/token",
       {
         method: "POST",
@@ -50,34 +48,32 @@ export async function GET(request) {
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: params,
-      }
+      },
     );
 
-    const tokens = await twitchResponse.json();
+    const data = await tokenResponse.json();
 
-    if (!twitchResponse.ok) {
-      return NextResponse.json(
-        { error: "Token exchange failed.", details: tokens },
-        { status: twitchResponse.status }
+    if (!tokenResponse.ok || !data.refresh_token) {
+      console.error("Twitch OAuth exchange failed:", data.message);
+
+      return response(
+        { error: "Unable to complete Twitch authorization." },
+        400,
       );
     }
 
-    const response = NextResponse.json({
-      message: "Twitch authentication successful!",
-      refresh_token: tokens.refresh_token,
-      expires_in: tokens.expires_in,
-      scopes: tokens.scope,
+    await saveRefreshToken(data.refresh_token);
+
+    return response({
+      success: true,
+      message: "Twitch account connected. Refresh token saved securely.",
     });
-
-    response.cookies.delete("twitch_oauth_state");
-
-    return response;
   } catch (error) {
-    console.error("OAuth error:", error);
+    console.error("OAuth callback error:", error.message);
 
-    return NextResponse.json(
-      { error: "Something went wrong during authentication." },
-      { status: 500 }
+    return response(
+      { error: "OAuth authorization failed." },
+      500,
     );
   }
 }

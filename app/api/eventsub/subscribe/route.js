@@ -4,17 +4,41 @@ import { getAppAccessToken, getUser } from "../../../../lib/twitch.js";
 export async function POST() {
   try {
     const appToken = await getAppAccessToken();
-    const moderatorToken = await fetch(
+
+    const refreshResponse = await fetch("https://id.twitch.tv/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        client_id: process.env.TWITCH_CLIENT_ID,
+        client_secret: process.env.TWITCH_CLIENT_SECRET,
+        grant_type: "refresh_token",
+        refresh_token: process.env.TWITCH_USER_REFRESH_TOKEN,
+      }),
+    });
+
+    const tokens = await refreshResponse.json();
+
+    if (!refreshResponse.ok) {
+      throw new Error("Moderator token refresh failed");
+    }
+
+    const validateResponse = await fetch(
       "https://id.twitch.tv/oauth2/validate",
       {
         headers: {
-          Authorization: `OAuth ${process.env.TWITCH_USER_REFRESH_TOKEN}`,
+          Authorization: `OAuth ${tokens.access_token}`,
         },
       },
     );
 
-    // We'll use the validated moderator ID and Jesse's broadcaster ID.
-    const moderator = await moderatorToken.json();
+    const moderator = await validateResponse.json();
+
+    if (!validateResponse.ok || !moderator.user_id) {
+      throw new Error("Moderator validation failed");
+    }
+
     const jesse = await getUser(process.env.JESSE_USERNAME, appToken);
 
     const response = await fetch(
