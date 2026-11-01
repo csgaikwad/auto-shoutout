@@ -1,8 +1,6 @@
-
 import { NextResponse } from "next/server";
 import { getAppAccessToken, getUser } from "../../../../lib/twitch.js";
 import { getModeratorAccess } from "../../../../lib/twitch-auth.js";
-
 
 export async function POST(request) {
   try {
@@ -11,10 +9,7 @@ export async function POST(request) {
       request.headers.get("authorization") !==
         `Bearer ${process.env.EVENTSUB_SETUP_SECRET}`
     ) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const channel = process.env.JESSE_USERNAME?.toLowerCase();
@@ -72,6 +67,14 @@ export async function POST(request) {
 
       const data = await response.json();
 
+
+      console.log(
+        "[EVENTSUB] Subscription response:",
+        subscription.type,
+        response.status,
+        data,
+      );
+
       if (response.status === 409) {
         results.push({
           type: subscription.type,
@@ -81,9 +84,7 @@ export async function POST(request) {
       }
 
       if (!response.ok) {
-        throw new Error(
-          `${subscription.type}: ${JSON.stringify(data)}`,
-        );
+        throw new Error(`${subscription.type}: ${JSON.stringify(data)}`);
       }
 
       results.push({
@@ -99,9 +100,6 @@ export async function POST(request) {
   } catch (error) {
     console.error("EventSub setup error:", error.message);
 
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
