@@ -2,10 +2,21 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import {
-  isEventProcessed,
-  markEventProcessed,
+  enqueueUser,
   recordShoutout,
+  markEventProcessed,
 } from "../../../../lib/state.js";
+
+export const runtime = "nodejs";
+
+const TRACKED_USERS = new Set(
+  (process.env.TRACKED_USERS || "")
+    .split(",")
+    .map((user) => user.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+const CHANNEL = process.env.JESSE_USERNAME?.toLowerCase();
 
 export async function POST(request) {
   try {
@@ -69,44 +80,59 @@ export async function POST(request) {
       });
     }
 
-    if (messageType === "notification") {
+    if (messageType !== "notification") {
+      return new NextResponse(null, { status: 204 });
+    }
+
+    const event = payload.event;
+    const subscriptionType = payload.subscription?.type;
+
+    if (
+      event?.broadcaster_user_login?.toLowerCase() !== CHANNEL
+    ) {
+      return new NextResponse(null, { status: 204 });
+    }
+
+    if (subscriptionType === "channel.chat.message") {
+      const username = event.chatter_user_login?.toLowerCase();
+
       if (
-        payload.subscription?.type === "channel.shoutout.create"
+        username &&
+        TRACKED_USERS.has(username) &&
+        /^[a-z0-9_]{1,25}$/.test(username)
       ) {
-        if (await isEventProcessed(messageId)) {
-          return new NextResponse(null, { status: 204 });
-        }
+        await enqueueUser(username);
+        console.log(`Queued chat user: ${username}`);
+      }
+    }
 
-        const event = payload.event;
-        const username = event?.to_broadcaster_user_login?.toLowerCase();
+    if (subscriptionType === "channel.shoutout.create") {
+      const username =
+        event.to_broadcaster_user_login?.toLowerCase();
 
-        if (!username || !/^[a-z0-9_]{1,25}$/.test(username)) {
-          return new NextResponse("Invalid target username", {
-            status: 400,
-          });
-        }
-
-        const shoutoutTime = Date.parse(event.started_at);
-        const cooldownTime = Date.parse(event.cooldown_ends_at);
+      if (
+        username &&
+        /^[a-z0-9_]{1,25}$/.test(username)
+      ) {
+        const cooldown = Date.parse(event.cooldown_ends_at);
 
         await recordShoutout(
           username,
-          Number.isFinite(shoutoutTime) ? shoutoutTime : Date.now(),
-          Number.isFinite(cooldownTime) ? cooldownTime : Date.now(),
+          Date.now(),
+          Number.isFinite(cooldown) ? cooldown : Date.now(),
         );
-
-        await markEventProcessed(messageId);
 
         console.log(`Shoutout detected: ${username}`);
       }
     }
 
+    // Queue and shoutout updates are idempotent, so mark after processing.
+    await markEventProcessed(messageId);
+
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error("EventSub webhook error:", error.message);
 
-    return new NextResponse("Webhook error", {
-      status: 500,
-    });
+    return new NextResponse("Webhook error", { status: 500 });
   }
 }

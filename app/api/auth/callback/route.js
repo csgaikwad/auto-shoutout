@@ -7,7 +7,8 @@ export async function GET(request) {
 
   const code = searchParams.get("code");
   const returnedState = searchParams.get("state");
-  const expectedState = request.cookies.get("twitch_oauth_state")?.value;
+  const expectedState =
+    request.cookies.get("twitch_oauth_state")?.value;
 
   const response = (body, status = 200) => {
     const result = NextResponse.json(body, { status });
@@ -54,10 +55,8 @@ export async function GET(request) {
     const data = await tokenResponse.json();
 
     if (!tokenResponse.ok || !data.refresh_token) {
-      console.error("Twitch OAuth exchange failed:", data.message);
-
       return response(
-        { error: "Unable to complete Twitch authorization." },
+        { error: data.message || "Twitch authorization failed." },
         400,
       );
     }
@@ -66,14 +65,11 @@ export async function GET(request) {
 
     return response({
       success: true,
-      message: "Twitch account connected. Refresh token saved securely.",
+      message: "Twitch account connected successfully.",
     });
   } catch (error) {
     console.error("OAuth callback error:", error.message);
 
-    return response(
-      { error: "OAuth authorization failed." },
-      500,
-    );
+    return response({ error: "OAuth authorization failed." }, 500);
   }
 }

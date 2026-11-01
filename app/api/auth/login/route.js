@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 
@@ -5,8 +6,10 @@ export async function GET() {
   const state = randomBytes(32).toString("hex");
 
   const scopes = [
-    "moderator:read:chatters",
     "moderator:manage:shoutouts",
+    "moderator:read:chatters",
+    "user:read:chat",
+    "user:bot",
     "chat:read",
     "chat:edit",
   ];
