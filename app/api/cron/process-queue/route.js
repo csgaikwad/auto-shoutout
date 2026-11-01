@@ -13,7 +13,6 @@ import { getModeratorAccess } from "../../../../lib/twitch-auth.js";
 import { getAppAccessToken, getUser } from "../../../../lib/twitch.js";
 import { sendShoutout } from "../../../../lib/shoutout.js";
 
-export const runtime = "nodejs";
 
 const SHOUTOUT_COOLDOWN = 2 * 60 * 1000;
 const REPEAT_PREVENTION = 20 * 60 * 60 * 1000;

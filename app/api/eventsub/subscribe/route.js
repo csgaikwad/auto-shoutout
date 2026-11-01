@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { getAppAccessToken, getUser } from "../../../../lib/twitch.js";
 import { getModeratorAccess } from "../../../../lib/twitch-auth.js";
 
-export const runtime = "nodejs";
 
 export async function POST(request) {
   try {

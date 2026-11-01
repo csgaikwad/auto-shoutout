@@ -7,7 +7,6 @@ import {
   markEventProcessed,
 } from "../../../../lib/state.js";
 
-export const runtime = "nodejs";
 
 const TRACKED_USERS = new Set(
   (process.env.TRACKED_USERS || "")
