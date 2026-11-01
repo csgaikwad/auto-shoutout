@@ -18,7 +18,7 @@ export async function POST(request) {
     }
 
     const channel = process.env.JESSE_USERNAME?.toLowerCase();
-    const callback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/twitch`;
+    const callback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhook/twitch`;
 
     if (!channel || !process.env.TWITCH_EVENTSUB_SECRET) {
       throw new Error("Missing channel or EventSub configuration.");
