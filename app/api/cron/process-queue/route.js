@@ -7,6 +7,7 @@ import {
   updateNextShoutoutAt,
   acquireCronLock,
   releaseCronLock,
+  resetShoutedUsersDaily,
 } from "../../../../lib/state.js";
 import { getModeratorAccess } from "../../../../lib/twitch-auth.js";
 import { getAppAccessToken, getUser } from "../../../../lib/twitch.js";
@@ -54,8 +55,9 @@ export async function POST(request) {
         throw new Error("JESSE_USERNAME is missing.");
       }
 
-      let state = await loadWorkerState();
+      await resetShoutedUsersDaily();
 
+      let state = await loadWorkerState();
       console.log("[CRON] Queue checked:", state.queue);
       console.log("[CRON] Next shoutout:", new Date(state.nextShoutoutAt));
 
