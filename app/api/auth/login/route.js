@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 
@@ -9,6 +8,7 @@ export async function GET() {
     "moderator:manage:shoutouts",
     "moderator:read:chatters",
     "user:read:chat",
+    "user:write:chat",
     "user:bot",
     "chat:read",
     "chat:edit",
