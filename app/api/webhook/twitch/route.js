@@ -103,7 +103,7 @@ export async function POST(request) {
             accessToken,
             broadcasterId: event.broadcaster_user_id,
             senderId: moderator.user_id,
-            message: "waitinggg",
+            message: "Wait why this song kinda... jessed1Dance jessed1Dance jessed1Dance jessed1Dance jessed1Dance jessed1Dance jessed1Dance",
           });
         }
       }
