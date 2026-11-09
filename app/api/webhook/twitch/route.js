@@ -97,14 +97,14 @@ export async function POST(request) {
           );
 
           // Actual chat response (testing)
-          // const { accessToken, moderator } = await getModeratorAccess();
+          const { accessToken, moderator } = await getModeratorAccess();
 
-          // await sendChatMessage({
-          //   accessToken,
-          //   broadcasterId: event.broadcaster_user_id,
-          //   senderId: moderator.user_id,
-          //   message: "waitinggg",
-          // });
+          await sendChatMessage({
+            accessToken,
+            broadcasterId: event.broadcaster_user_id,
+            senderId: moderator.user_id,
+            message: "waitinggg",
+          });
         }
       }
 
