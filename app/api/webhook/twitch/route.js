@@ -1,4 +1,3 @@
-
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import {
@@ -7,6 +6,8 @@ import {
   markEventProcessed,
 } from "../../../../lib/state.js";
 
+import { getModeratorAccess } from "../../../../lib/twitch-auth.js";
+import { sendChatMessage } from "../../../../lib/chat.js";
 
 const TRACKED_USERS = new Set(
   (process.env.TRACKED_USERS || "")
@@ -19,18 +20,10 @@ const CHANNEL = process.env.JESSE_USERNAME?.toLowerCase();
 
 export async function POST(request) {
   try {
-    const messageId = request.headers.get(
-      "twitch-eventsub-message-id",
-    );
-    const timestamp = request.headers.get(
-      "twitch-eventsub-message-timestamp",
-    );
-    const signature = request.headers.get(
-      "twitch-eventsub-message-signature",
-    );
-    const messageType = request.headers.get(
-      "twitch-eventsub-message-type",
-    );
+    const messageId = request.headers.get("twitch-eventsub-message-id");
+    const timestamp = request.headers.get("twitch-eventsub-message-timestamp");
+    const signature = request.headers.get("twitch-eventsub-message-signature");
+    const messageType = request.headers.get("twitch-eventsub-message-type");
 
     const secret = process.env.TWITCH_EVENTSUB_SECRET;
 
@@ -86,14 +79,36 @@ export async function POST(request) {
     const event = payload.event;
     const subscriptionType = payload.subscription?.type;
 
-    if (
-      event?.broadcaster_user_login?.toLowerCase() !== CHANNEL
-    ) {
+    if (event?.broadcaster_user_login?.toLowerCase() !== CHANNEL) {
       return new NextResponse(null, { status: 204 });
     }
 
     if (subscriptionType === "channel.chat.message") {
       const username = event.chatter_user_login?.toLowerCase();
+
+      if (subscriptionType === "channel.chat.message") {
+        const username = event.chatter_user_login?.toLowerCase();
+        const message = event.message?.text?.trim().toLowerCase();
+
+        //  " !wait test "
+        if (message === "!wait") {
+          console.log(
+            `[CHAT TEST] ${event.chatter_user_name} used !wait — waitinggg`,
+          );
+
+          // Actual chat response (testing)
+          // const { accessToken, moderator } = await getModeratorAccess();
+
+          // await sendChatMessage({
+          //   accessToken,
+          //   broadcasterId: event.broadcaster_user_id,
+          //   senderId: moderator.user_id,
+          //   message: "waitinggg",
+          // });
+        }
+      }
+
+      // shoutout queue logic
 
       if (
         username &&
@@ -106,13 +121,9 @@ export async function POST(request) {
     }
 
     if (subscriptionType === "channel.shoutout.create") {
-      const username =
-        event.to_broadcaster_user_login?.toLowerCase();
+      const username = event.to_broadcaster_user_login?.toLowerCase();
 
-      if (
-        username &&
-        /^[a-z0-9_]{1,25}$/.test(username)
-      ) {
+      if (username && /^[a-z0-9_]{1,25}$/.test(username)) {
         const cooldown = Date.parse(event.cooldown_ends_at);
 
         await recordShoutout(
