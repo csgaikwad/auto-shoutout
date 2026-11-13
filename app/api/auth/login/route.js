@@ -8,7 +8,7 @@ export async function GET() {
     "moderator:manage:shoutouts",
     "moderator:read:chatters",
     "user:read:chat",
-    "user:write:chat",
+    // "user:write:chat",
     "user:bot",
     "chat:read",
     "chat:edit",

@@ -6,8 +6,8 @@ import {
   markEventProcessed,
 } from "../../../../lib/state.js";
 
-import { getModeratorAccess } from "../../../../lib/twitch-auth.js";
-import { sendChatMessage } from "../../../../lib/chat.js";
+// import { getModeratorAccess } from "../../../../lib/twitch-auth.js";
+// import { sendChatMessage } from "../../../../lib/chat.js";
 
 const TRACKED_USERS = new Set(
   (process.env.TRACKED_USERS || "")
@@ -86,27 +86,27 @@ export async function POST(request) {
     if (subscriptionType === "channel.chat.message") {
       const username = event.chatter_user_login?.toLowerCase();
 
-      if (subscriptionType === "channel.chat.message") {
-        const username = event.chatter_user_login?.toLowerCase();
-        const message = event.message?.text?.trim().toLowerCase();
+      // if (subscriptionType === "channel.chat.message") {
+      //   const username = event.chatter_user_login?.toLowerCase();
+      //   const message = event.message?.text?.trim().toLowerCase();
 
         //  " !wait test "
-        if (message === "!wait") {
-          console.log(
-            `[CHAT TEST] ${event.chatter_user_name} used !wait — waitinggg`,
-          );
+      //   if (message === "!wait") {
+      //     console.log(
+      //       `[CHAT TEST] ${event.chatter_user_name} used !wait — waitinggg`,
+      //     );
 
           // Actual chat response (testing)
-          const { accessToken, moderator } = await getModeratorAccess();
+      //     const { accessToken, moderator } = await getModeratorAccess();
 
-          await sendChatMessage({
-            accessToken,
-            broadcasterId: event.broadcaster_user_id,
-            senderId: moderator.user_id,
-            message: "Wait why this song kinda... jessed1Dance jessed1Dance jessed1Dance jessed1Dance jessed1Dance jessed1Dance jessed1Dance",
-          });
-        }
-      }
+      //     await sendChatMessage({
+      //       accessToken,
+      //       broadcasterId: event.broadcaster_user_id,
+      //       senderId: moderator.user_id,
+      //       message: "Wait why this song kinda... jessed1Dance jessed1Dance jessed1Dance jessed1Dance jessed1Dance jessed1Dance jessed1Dance",
+      //     });
+      //   }
+      // }
 
       // shoutout queue logic
 
