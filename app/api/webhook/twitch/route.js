@@ -1,13 +1,15 @@
+
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
+
 import {
   enqueueUser,
   recordShoutout,
   markEventProcessed,
 } from "../../../../lib/state.js";
 
-// import { getModeratorAccess } from "../../../../lib/twitch-auth.js";
-// import { sendChatMessage } from "../../../../lib/chat.js";
+import { getModeratorAccess } from "../../../../lib/twitch-auth.js";
+import { createClip } from "../../../../lib/clips.js";
 
 const TRACKED_USERS = new Set(
   (process.env.TRACKED_USERS || "")
@@ -16,7 +18,14 @@ const TRACKED_USERS = new Set(
     .filter(Boolean),
 );
 
-const CHANNEL = process.env.JESSE_USERNAME?.toLowerCase();
+const SHOUTOUT_CHANNEL = process.env.JESSE_USERNAME?.toLowerCase();
+
+const CLIP_CHANNELS = new Set(
+  (process.env.TWITCH_CLIP_CHANNELS || "")
+    .split(",")
+    .map((channel) => channel.trim().toLowerCase())
+    .filter(Boolean),
+);
 
 export async function POST(request) {
   try {
@@ -78,13 +87,95 @@ export async function POST(request) {
 
     const event = payload.event;
     const subscriptionType = payload.subscription?.type;
+    const channel = event?.broadcaster_user_login?.toLowerCase();
 
-    if (event?.broadcaster_user_login?.toLowerCase() !== CHANNEL) {
+    if (!channel) {
+      return new NextResponse(null, { status: 204 });
+    }
+
+    // Ignore channels that are not configured for either feature.
+    if (
+      !CLIP_CHANNELS.has(channel) &&
+      channel !== SHOUTOUT_CHANNEL
+    ) {
       return new NextResponse(null, { status: 204 });
     }
 
     if (subscriptionType === "channel.chat.message") {
       const username = event.chatter_user_login?.toLowerCase();
+      const message = event.message?.text?.trim().toLowerCase();
+
+      // Create clips in all configured clip channels.
+      if (CLIP_CHANNELS.has(channel) && message === "!clip") {
+        try {
+          const { accessToken } = await getModeratorAccess();
+
+          const clip = await createClip({
+            accessToken,
+            broadcasterId: event.broadcaster_user_id,
+          });
+
+          console.log("Clip creation requested:", {
+            channel,
+            id: clip.id,
+            editUrl: clip.edit_url,
+            requestedBy: username,
+          });
+        } catch (error) {
+          console.error(
+            `Clip creation failed in ${channel}:`,
+            error.message,
+          );
+        }
+      }
+
+      // Auto-shoutout queue only in the configured shoutout channel.
+      if (
+        channel === SHOUTOUT_CHANNEL &&
+        username &&
+        TRACKED_USERS.has(username) &&
+        /^[a-z0-9_]{1,25}$/.test(username)
+      ) {
+        await enqueueUser(username);
+        console.log(`Queued chat user: ${username}`);
+      }
+    }
+
+    // Manual shoutout tracking only in the configured shoutout channel.
+    if (
+      subscriptionType === "channel.shoutout.create" &&
+      channel === SHOUTOUT_CHANNEL
+    ) {
+      const username = event.to_broadcaster_user_login?.toLowerCase();
+
+      if (username && /^[a-z0-9_]{1,25}$/.test(username)) {
+        const cooldown = Date.parse(event.cooldown_ends_at);
+
+        await recordShoutout(
+          username,
+          Date.now(),
+          Number.isFinite(cooldown) ? cooldown : Date.now(),
+        );
+
+        console.log(`Shoutout detected: ${username}`);
+      }
+    }
+
+    await markEventProcessed(messageId);
+
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    console.error("EventSub webhook error:", error.message);
+
+    return new NextResponse("Webhook error", { status: 500 });
+  }
+}
+
+
+
+
+
+
 
       // if (subscriptionType === "channel.chat.message") {
       //   const username = event.chatter_user_login?.toLowerCase();
@@ -108,41 +199,3 @@ export async function POST(request) {
       //   }
       // }
 
-      // shoutout queue logic
-
-      if (
-        username &&
-        TRACKED_USERS.has(username) &&
-        /^[a-z0-9_]{1,25}$/.test(username)
-      ) {
-        await enqueueUser(username);
-        console.log(`Queued chat user: ${username}`);
-      }
-    }
-
-    if (subscriptionType === "channel.shoutout.create") {
-      const username = event.to_broadcaster_user_login?.toLowerCase();
-
-      if (username && /^[a-z0-9_]{1,25}$/.test(username)) {
-        const cooldown = Date.parse(event.cooldown_ends_at);
-
-        await recordShoutout(
-          username,
-          Date.now(),
-          Number.isFinite(cooldown) ? cooldown : Date.now(),
-        );
-
-        console.log(`Shoutout detected: ${username}`);
-      }
-    }
-
-    // Queue and shoutout updates are idempotent, so mark after processing.
-    await markEventProcessed(messageId);
-
-    return new NextResponse(null, { status: 204 });
-  } catch (error) {
-    console.error("EventSub webhook error:", error.message);
-
-    return new NextResponse("Webhook error", { status: 500 });
-  }
-}

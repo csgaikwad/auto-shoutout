@@ -1,5 +1,11 @@
+
 import { NextResponse } from "next/server";
-import { getAppAccessToken, getUser } from "../../../../lib/twitch.js";
+
+import {
+  getAppAccessToken,
+  getUser,
+} from "../../../../lib/twitch.js";
+
 import { getModeratorAccess } from "../../../../lib/twitch-auth.js";
 
 export async function POST(request) {
@@ -12,35 +18,53 @@ export async function POST(request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const channel = process.env.JESSE_USERNAME?.toLowerCase();
-    const callback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhook/twitch`;
+    const shoutoutChannel = process.env.JESSE_USERNAME?.trim().toLowerCase();
 
-    if (!channel || !process.env.TWITCH_EVENTSUB_SECRET) {
+    const clipChannels = (process.env.TWITCH_CLIP_CHANNELS || "")
+      .split(",")
+      .map((channel) => channel.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (!shoutoutChannel || !process.env.TWITCH_EVENTSUB_SECRET) {
       throw new Error("Missing channel or EventSub configuration.");
     }
 
+    // Chat subscriptions include all clip channels and the shoutout channel.
+    const chatChannels = [
+      ...new Set([...clipChannels, shoutoutChannel]),
+    ];
+
+    const callback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhook/twitch`;
+
     const { moderator } = await getModeratorAccess();
     const appToken = await getAppAccessToken();
-    const jesse = await getUser(channel, appToken);
 
-    const subscriptions = [
-      {
+    const subscriptions = [];
+
+    for (const channelName of chatChannels) {
+      const broadcaster = await getUser(channelName, appToken);
+
+      subscriptions.push({
         type: "channel.chat.message",
         version: "1",
         condition: {
-          broadcaster_user_id: jesse.id,
+          broadcaster_user_id: broadcaster.id,
           user_id: moderator.user_id,
         },
-      },
-      {
-        type: "channel.shoutout.create",
-        version: "1",
-        condition: {
-          broadcaster_user_id: jesse.id,
-          moderator_user_id: moderator.user_id,
-        },
-      },
-    ];
+      });
+
+      // Shoutout tracking only for the configured shoutout channel.
+      if (channelName === shoutoutChannel) {
+        subscriptions.push({
+          type: "channel.shoutout.create",
+          version: "1",
+          condition: {
+            broadcaster_user_id: broadcaster.id,
+            moderator_user_id: moderator.user_id,
+          },
+        });
+      }
+    }
 
     const results = [];
 
@@ -67,7 +91,6 @@ export async function POST(request) {
 
       const data = await response.json();
 
-
       console.log(
         "[EVENTSUB] Subscription response:",
         subscription.type,
@@ -78,6 +101,7 @@ export async function POST(request) {
       if (response.status === 409) {
         results.push({
           type: subscription.type,
+          channel: subscription.condition.broadcaster_user_id,
           status: "already_exists",
         });
         continue;
@@ -89,6 +113,7 @@ export async function POST(request) {
 
       results.push({
         type: subscription.type,
+        channel: subscription.condition.broadcaster_user_id,
         status: data.data?.[0]?.status || "pending",
       });
     }

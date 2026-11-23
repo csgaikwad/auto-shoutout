@@ -12,6 +12,7 @@ export async function GET() {
     "user:bot",
     "chat:read",
     "chat:edit",
+    "clips:edit",
   ];
 
   const params = new URLSearchParams({
