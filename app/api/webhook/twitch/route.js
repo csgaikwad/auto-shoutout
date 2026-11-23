@@ -8,9 +8,6 @@ import {
   markEventProcessed,
 } from "../../../../lib/state.js";
 
-import { getModeratorAccess } from "../../../../lib/twitch-auth.js";
-import { createClip } from "../../../../lib/clips.js";
-
 const TRACKED_USERS = new Set(
   (process.env.TRACKED_USERS || "")
     .split(",")
@@ -18,14 +15,7 @@ const TRACKED_USERS = new Set(
     .filter(Boolean),
 );
 
-const SHOUTOUT_CHANNEL = process.env.JESSE_USERNAME?.toLowerCase();
-
-const CLIP_CHANNELS = new Set(
-  (process.env.TWITCH_CLIP_CHANNELS || "")
-    .split(",")
-    .map((channel) => channel.trim().toLowerCase())
-    .filter(Boolean),
-);
+const SHOUTOUT_CHANNEL = process.env.JESSE_USERNAME?.trim().toLowerCase();
 
 export async function POST(request) {
   try {
@@ -89,49 +79,15 @@ export async function POST(request) {
     const subscriptionType = payload.subscription?.type;
     const channel = event?.broadcaster_user_login?.toLowerCase();
 
-    if (!channel) {
-      return new NextResponse(null, { status: 204 });
-    }
-
-    // Ignore channels that are not configured for either feature.
-    if (
-      !CLIP_CHANNELS.has(channel) &&
-      channel !== SHOUTOUT_CHANNEL
-    ) {
+    // Auto-shoutouts only work in Jesse's channel.
+    if (!channel || channel !== SHOUTOUT_CHANNEL) {
       return new NextResponse(null, { status: 204 });
     }
 
     if (subscriptionType === "channel.chat.message") {
       const username = event.chatter_user_login?.toLowerCase();
-      const message = event.message?.text?.trim().toLowerCase();
 
-      // Create clips in all configured clip channels.
-      if (CLIP_CHANNELS.has(channel) && message === "!clip") {
-        try {
-          const { accessToken } = await getModeratorAccess();
-
-          const clip = await createClip({
-            accessToken,
-            broadcasterId: event.broadcaster_user_id,
-          });
-
-          console.log("Clip creation requested:", {
-            channel,
-            id: clip.id,
-            editUrl: clip.edit_url,
-            requestedBy: username,
-          });
-        } catch (error) {
-          console.error(
-            `Clip creation failed in ${channel}:`,
-            error.message,
-          );
-        }
-      }
-
-      // Auto-shoutout queue only in the configured shoutout channel.
       if (
-        channel === SHOUTOUT_CHANNEL &&
         username &&
         TRACKED_USERS.has(username) &&
         /^[a-z0-9_]{1,25}$/.test(username)
@@ -141,11 +97,8 @@ export async function POST(request) {
       }
     }
 
-    // Manual shoutout tracking only in the configured shoutout channel.
-    if (
-      subscriptionType === "channel.shoutout.create" &&
-      channel === SHOUTOUT_CHANNEL
-    ) {
+    // Track manual shoutouts only in Jesse's channel.
+    if (subscriptionType === "channel.shoutout.create") {
       const username = event.to_broadcaster_user_login?.toLowerCase();
 
       if (username && /^[a-z0-9_]{1,25}$/.test(username)) {
@@ -170,32 +123,3 @@ export async function POST(request) {
     return new NextResponse("Webhook error", { status: 500 });
   }
 }
-
-
-
-
-
-
-
-      // if (subscriptionType === "channel.chat.message") {
-      //   const username = event.chatter_user_login?.toLowerCase();
-      //   const message = event.message?.text?.trim().toLowerCase();
-
-        //  " !wait test "
-      //   if (message === "!wait") {
-      //     console.log(
-      //       `[CHAT TEST] ${event.chatter_user_name} used !wait — waitinggg`,
-      //     );
-
-          // Actual chat response (testing)
-      //     const { accessToken, moderator } = await getModeratorAccess();
-
-      //     await sendChatMessage({
-      //       accessToken,
-      //       broadcasterId: event.broadcaster_user_id,
-      //       senderId: moderator.user_id,
-      //       message: "Wait why this song kinda... jessed1Dance jessed1Dance jessed1Dance jessed1Dance jessed1Dance jessed1Dance jessed1Dance",
-      //     });
-      //   }
-      // }
-
