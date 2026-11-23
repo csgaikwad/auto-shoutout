@@ -67,7 +67,7 @@ export async function GET(request) {
     });
 
     return new NextResponse(
-      `Clip request accepted in ${channel}! ${clip.edit_url}`,
+      `Clip request accepted ${clip.edit_url}`,
       { status: 200 },
     );
   } catch (error) {
